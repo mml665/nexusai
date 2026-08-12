@@ -26,7 +26,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
       "id": 1,
       "options": {
         "colorMode": "background",
@@ -49,7 +49,195 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "description": "各服务 Prometheus 指标采集耗时，反映服务响应速度",
+      "description": "各微服务 HTTP 请求速率（请求数/秒），按 instance 分组",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "spanNulls": false
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(nexusai_http_requests_total[1m])) by (instance)",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "各服务 HTTP 请求速率（req/s）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "各微服务 P95 延迟对比（秒）",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2.0 }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "spanNulls": false
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nexusai_http_request_duration_seconds_bucket[5m])) by (instance, le))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "各服务 P95 延迟对比（秒）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "各微服务 5xx 服务器错误率（错误/秒）",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "spanNulls": false
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "id": 4,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(nexusai_http_requests_total{status=~\"5..\"}[5m])) by (instance)",
+          "legendFormat": "{{instance}} 5xx",
+          "refId": "A"
+        }
+      ],
+      "title": "各服务 5xx 错误率（错误/秒）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "各微服务请求成功率百分比 = 2xx / 总请求",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.8 },
+              { "color": "green", "value": 0.95 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "id": 5,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(nexusai_http_requests_total{status=~\"2..\"}[5m])) by (instance) / clamp_min(sum(rate(nexusai_http_requests_total[5m])) by (instance), 0.001)",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "各服务请求成功率",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "熔断器状态：0=关闭(正常)，1=半开(恢复中)，2=打开(熔断中)",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "green", "text": "关闭" }, "1": { "color": "yellow", "text": "半开" }, "2": { "color": "red", "text": "打开" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 21 },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "nexusai_circuit_breaker_state",
+          "legendFormat": "{{service}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "熔断器状态",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "各服务 Prometheus 指标采集耗时（秒），耗时过高表示服务响应慢",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -73,8 +261,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-      "id": 2,
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 21 },
+      "id": 7,
       "options": {
         "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
         "tooltip": { "mode": "multi", "sort": "desc" }
@@ -82,7 +270,7 @@
       "targets": [
         {
           "expr": "scrape_duration_seconds{job=~\"nexusai.*\"}",
-          "legendFormat": "{{job}} - 采集耗时",
+          "legendFormat": "{{job}}",
           "refId": "A"
         }
       ],
@@ -91,22 +279,15 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "description": "各服务最近一次采集是否成功，0=失败，1=成功",
+      "description": "Redis 操作速率（操作/秒），包括读、写、发布等",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          },
+          "unit": "ops",
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "stepAfter",
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "fillOpacity": 30,
+            "fillOpacity": 15,
             "gradientMode": "opacity",
             "spanNulls": false
           },
@@ -114,21 +295,165 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-      "id": 3,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 8,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(nexusai_redis_operations_total[1m])) by (operation)",
+          "legendFormat": "{{operation}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Redis 操作速率（操作/秒）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "数据库活跃连接数",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 20 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "nexusai_db_connections_active",
+          "legendFormat": "{{instance}} 数据库连接",
+          "refId": "A"
+        }
+      ],
+      "title": "数据库活跃连接数",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "流队列深度趋势（消息数），队列积压表示消费速度跟不上生产速度",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "spanNulls": false
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "id": 10,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "nexusai_stream_queue_length",
+          "legendFormat": "{{stream}} 队列深度",
+          "refId": "A"
+        }
+      ],
+      "title": "流队列深度趋势",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "死信队列消息增长趋势，持续增长表示消息处理持续失败",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "spanNulls": false
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+      "id": 11,
       "options": {
         "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"] },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "expr": "scrape_samples_post_metric_relabeling{job=~\"nexusai.*\"}",
-          "legendFormat": "{{job}} - 采集指标数",
+          "expr": "sum(nexusai_dlq_messages_total) by (stream)",
+          "legendFormat": "{{stream}} 死信",
           "refId": "A"
         }
       ],
-      "title": "各服务采集指标数量",
+      "title": "死信队列消息趋势",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "各服务进程运行时间（秒）",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 300 },
+              { "color": "green", "value": 3600 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal"
+      },
+      "targets": [
+        {
+          "expr": "max(nexusai_process_uptime_seconds) by (instance)",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "各服务运行时间",
+      "type": "stat"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -151,8 +476,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 14 },
-      "id": 4,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 },
+      "id": 13,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -174,7 +499,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "description": "Prometheus 自身 ingest 速率，每秒摄入的样本数",
+      "description": "Prometheus 数据摄入速率，每秒摄入的样本数",
       "fieldConfig": {
         "defaults": {
           "unit": "cps",
@@ -190,8 +515,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 14 },
-      "id": 5,
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 50 },
+      "id": 14,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -211,44 +536,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "description": "Prometheus TSDB 内存使用情况",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 536870912 },
-              { "color": "red", "value": 1073741824 }
-            ]
-          },
-          "color": { "mode": "thresholds" }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 14 },
-      "id": 6,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
-      },
-      "targets": [
-        {
-          "expr": "prometheus_tsdb_head_samples_appended_total",
-          "legendFormat": "总样本数",
-          "refId": "A"
-        }
-      ],
-      "title": "TSDB 累计样本总数",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "description": "Prometheus TSDB 内存中的时间序列数量趋势",
+      "description": "Prometheus TSDB 内存中的时间序列数量和内存块数量趋势",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -264,8 +552,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
-      "id": 7,
+      "gridPos": { "h": 6, "w": 16, "x": 8, "y": 50 },
+      "id": 15,
       "options": {
         "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
         "tooltip": { "mode": "multi", "sort": "desc" }
@@ -284,6 +572,40 @@
       ],
       "title": "Prometheus 时间序列与内存块趋势",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "各服务采集的指标数量趋势",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "spanNulls": false
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 56 },
+      "id": 16,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "scrape_samples_post_metric_relabeling{job=~\"nexusai.*\"}",
+          "legendFormat": "{{job}} 指标数",
+          "refId": "A"
+        }
+      ],
+      "title": "各服务采集指标数量趋势",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",
@@ -296,6 +618,6 @@
   "timezone": "Asia/Shanghai",
   "title": "NexusAI 服务健康状态",
   "uid": "nexusai-service-health",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

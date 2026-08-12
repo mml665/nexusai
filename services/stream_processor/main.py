@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from common.config import config
-from common.metrics import setup_metrics, sensor_readings_processed
+from common.metrics import setup_metrics, sensor_readings_processed, stream_queue_length, dlq_messages_total, device_count_gauge, redis_operations_total, db_connections_active
 from common.errors import setup_error_handlers
 
 app = FastAPI(title="NexusAI Stream Processor", version="2.0.0")
@@ -56,6 +56,8 @@ async def init_db():
 async def startup():
     await init_redis()
     await init_db()
+    # Initialize DLQ counter to 0 so it's visible in Prometheus even with no failures
+    dlq_messages_total.inc(0)
     asyncio.create_task(consume_loop())
 
 
@@ -78,6 +80,7 @@ async def consume_loop():
                 count=50,
                 block=1000,
             )
+            redis_operations_total.inc(operation="xreadgroup", status="success")
             if results:
                 for _stream, messages in results:
                     for msg_id, fields in messages:
@@ -86,13 +89,38 @@ async def consume_loop():
                             sensor_readings_processed.inc()
                             # Only ACK after successful processing
                             await _redis.xack(STREAM_SENSOR_DATA, CONSUMER_GROUP, msg_id)
+                            redis_operations_total.inc(operation="xack", status="success")
                         except Exception as e:
                             print(f"[StreamProcessor] 消息处理失败 (msg={msg_id}): {e}")
                             # Send to DLQ for later analysis
                             dlq_fields = {**fields, "_error": str(e), "_original_id": msg_id}
                             await _redis.xadd(STREAM_DLQ, dlq_fields, maxlen=10000)
+                            redis_operations_total.inc(operation="xadd", status="dlq")
+                            dlq_messages_total.inc()
                             # ACK to prevent reprocessing (message is safely in DLQ)
                             await _redis.xack(STREAM_SENSOR_DATA, CONSUMER_GROUP, msg_id)
+                            redis_operations_total.inc(operation="xack", status="dlq")
+            # Update queue length gauge periodically
+            try:
+                qlen = await _redis.xlen(STREAM_SENSOR_DATA)
+                stream_queue_length.set(float(qlen), stream=STREAM_SENSOR_DATA)
+                dlq_len = await _redis.xlen(STREAM_DLQ)
+                stream_queue_length.set(float(dlq_len), stream=STREAM_DLQ)
+                redis_operations_total.inc(operation="xlen", status="success")
+                # Update device count
+                running = sum(1 for d in device_runtime.values() if d.get("running_secs", 0) > 0)
+                device_count_gauge.set(float(running), status="running")
+                device_count_gauge.set(float(len(device_runtime) - running), status="idle")
+                device_count_gauge.set(float(len(device_runtime)), status="total")
+                healthy = sum(1 for d in device_runtime.values() if d.get("defects", 0) == 0)
+                device_count_gauge.set(float(healthy), status="healthy")
+                high_risk = len(device_runtime) - healthy
+                device_count_gauge.set(float(high_risk), status="high_risk")
+                # Update DB connections gauge
+                if _pool:
+                    db_connections_active.set(float(_pool.get_size()))
+            except Exception:
+                pass
         except Exception as e:
             print(f"[StreamProcessor] 消费错误: {e}")
             await asyncio.sleep(1)
@@ -201,6 +229,7 @@ async def calculate_and_publish_oee(device_id: str, ts: datetime):
 
     # 发布到 Pub/Sub
     await _redis.publish(CHANNEL_OEE_UPDATE, json.dumps(oee_data))
+    redis_operations_total.inc(operation="publish", status="success")
 
 
 @app.get("/health")

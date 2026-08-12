@@ -22,7 +22,7 @@ from common.auth import (
     get_current_user, require_role, is_public_path,
 )
 from common.resilience import get_breaker, all_breakers_status, check_rate_limit, RateLimiter
-from common.metrics import setup_metrics
+from common.metrics import setup_metrics, circuit_breaker_state
 from common.errors import setup_error_handlers
 
 app = FastAPI(
@@ -112,9 +112,17 @@ async def get_me(user: dict = Depends(get_current_user)):
 
 
 @app.get("/api/v1/auth/circuit-breakers")
-async def circuit_breaker_status(user: dict = Depends(require_role("admin"))):
+async def get_circuit_breakers(user: dict = Depends(require_role("admin"))):
     """获取熔断器状态（管理员）"""
     return all_breakers_status()
+
+
+def _update_circuit_breaker_metrics():
+    """Update circuit breaker state gauges for Prometheus"""
+    state_map = {"closed": 0, "half_open": 1, "open": 2}
+    for name, info in all_breakers_status().items():
+        state = info.get("state", "closed")
+        circuit_breaker_state.set(float(state_map.get(state, 0)), service=name)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -201,6 +209,7 @@ async def proxy(path: str, request: Request):
 
     try:
         resp = await breaker.call(_do_proxy)
+        _update_circuit_breaker_metrics()
         return StreamingResponse(
             iter([resp.content]),
             status_code=resp.status_code,
@@ -210,8 +219,10 @@ async def proxy(path: str, request: Request):
     except HTTPException:
         raise
     except httpx.ConnectError:
+        _update_circuit_breaker_metrics()
         raise HTTPException(status_code=503, detail=f"服务不可达: {target['url']}")
     except Exception as e:
+        _update_circuit_breaker_metrics()
         raise HTTPException(status_code=500, detail=str(e))
 
 

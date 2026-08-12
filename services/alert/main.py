@@ -24,7 +24,7 @@ import asyncpg
 import uvicorn
 
 from common.config import config
-from common.metrics import setup_metrics
+from common.metrics import setup_metrics, active_alerts_gauge, redis_operations_total, db_connections_active
 from common.errors import setup_error_handlers
 
 app = FastAPI(title="NexusAI Smart Alert", version="2.0.0")
@@ -68,12 +68,14 @@ async def lifespan(app: FastAPI):
     # 启动告警订阅和升级检查
     alert_task = asyncio.create_task(_alert_subscriber_loop())
     escalation_task = asyncio.create_task(_escalation_loop())
+    metrics_task = asyncio.create_task(_metrics_update_loop())
 
     yield
 
     alert_task.cancel()
     escalation_task.cancel()
-    for t in (alert_task, escalation_task):
+    metrics_task.cancel()
+    for t in (alert_task, escalation_task, metrics_task):
         try:
             await t
         except asyncio.CancelledError:
@@ -177,6 +179,7 @@ async def _process_anomaly(raw_data: str):
         "context": anomaly.get("context", {}),
     }
     await _redis.publish(CHANNEL_ALERT, json.dumps(alert_payload, ensure_ascii=False))
+    redis_operations_total.inc(operation="publish", status="success")
     print(f"[Alert] #{alert_id} created: {title}")
 
 
@@ -209,11 +212,41 @@ async def _escalation_loop():
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 await _redis.publish(CHANNEL_ALERT, json.dumps(escalation_payload, ensure_ascii=False))
+                redis_operations_total.inc(operation="publish", status="escalation")
                 print(f"[Alert] Escalated: #{row['id']} {row['device_id']}")
         except asyncio.CancelledError:
             break
         except Exception as e:
             print(f"[Alert] escalation error: {e}")
+
+
+async def _metrics_update_loop():
+    """每 15 秒更新 Prometheus 告警指标"""
+    while True:
+        try:
+            await asyncio.sleep(15)
+            rows = await _pool.fetch(
+                """
+                SELECT severity, COUNT(*) as count
+                FROM alerts
+                WHERE status = 'triggered'
+                GROUP BY severity
+                """
+            )
+            for r in rows:
+                active_alerts_gauge.set(float(r["count"]), severity=r["severity"])
+            # Ensure all severities are represented
+            severities_seen = {r["severity"] for r in rows}
+            for sev in ("warning", "critical", "info"):
+                if sev not in severities_seen:
+                    active_alerts_gauge.set(0.0, severity=sev)
+            # Update DB connections gauge
+            if _pool:
+                db_connections_active.set(float(_pool.get_size()))
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[Alert] metrics update error: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════

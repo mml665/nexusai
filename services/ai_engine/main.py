@@ -30,7 +30,7 @@ from common.events import (
     CHANNEL_DIAGNOSIS,
     CHANNEL_DEVICE_STATUS,
 )
-from common.metrics import setup_metrics, anomalies_detected_total, llm_calls_total
+from common.metrics import setup_metrics, anomalies_detected_total, llm_calls_total, oee_score_gauge, device_count_gauge
 from common.errors import setup_error_handlers
 
 from ai_engine.agents.anomaly import AnomalyDetector, AnomalyEvent
@@ -361,6 +361,15 @@ async def _maintenance_scheduler_loop():
                     logger.error(f"Maintenance analysis failed for {device_id}: {e}")
 
             app_state["stats"]["total_maintenance"] += 1
+
+            # Update device health metrics for Prometheus
+            for r in results:
+                oee_score_gauge.set(float(r.health_score), device_id=r.device_id)
+            device_count_gauge.set(float(len(results)), status="total")
+            high_risk = sum(1 for r in results if r.risk_level in ("high", "critical"))
+            device_count_gauge.set(float(high_risk), status="high_risk")
+            healthy = sum(1 for r in results if r.risk_level == "healthy")
+            device_count_gauge.set(float(healthy), status="healthy")
 
             # 发布维护预测摘要
             if results:

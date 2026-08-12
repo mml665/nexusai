@@ -2,6 +2,7 @@
 Prometheus metrics for all services.
 
 Exposes /metrics endpoint and provides request tracking middleware.
+Hand-rolled Prometheus text exposition format — no prometheus_client dependency.
 """
 
 import time
@@ -12,8 +13,6 @@ from fastapi.responses import PlainTextResponse
 
 
 # ── Lightweight metrics (no prometheus_client dependency) ──
-# We expose metrics in Prometheus text exposition format.
-# This avoids adding prometheus-client as a dependency.
 
 class Counter:
     def __init__(self, name: str, help_text: str, labels: tuple = ()):
@@ -28,6 +27,38 @@ class Counter:
 
     def expose(self) -> str:
         lines = [f"# HELP {self.name} {self.help}", f"# TYPE {self.name} counter"]
+        for key, val in sorted(self._values.items()):
+            if self.labels:
+                label_str = ",".join(f'{l}="{v}"' for l, v in zip(self.labels, key))
+                lines.append(f'{self.name}{{{label_str}}} {val}')
+            else:
+                lines.append(f"{self.name} {val}")
+        return "\n".join(lines)
+
+
+class Gauge:
+    """Gauge metric — value can go up and down (queue depth, temperature, etc.)"""
+
+    def __init__(self, name: str, help_text: str, labels: tuple = ()):
+        self.name = name
+        self.help = help_text
+        self.labels = labels
+        self._values: dict[tuple, float] = {}
+
+    def set(self, value: float, **labels):
+        key = tuple(labels.get(l, "") for l in self.labels)
+        self._values[key] = value
+
+    def inc(self, amount: float = 1.0, **labels):
+        key = tuple(labels.get(l, "") for l in self.labels)
+        self._values[key] = self._values.get(key, 0.0) + amount
+
+    def dec(self, amount: float = 1.0, **labels):
+        key = tuple(labels.get(l, "") for l in self.labels)
+        self._values[key] = self._values.get(key, 0.0) - amount
+
+    def expose(self) -> str:
+        lines = [f"# HELP {self.name} {self.help}", f"# TYPE {self.name} gauge"]
         for key, val in sorted(self._values.items()):
             if self.labels:
                 label_str = ",".join(f'{l}="{v}"' for l, v in zip(self.labels, key))
@@ -79,6 +110,7 @@ class Histogram:
 
 # ── Global metrics instances ──
 
+# HTTP metrics
 http_requests_total = Counter(
     "nexusai_http_requests_total",
     "Total HTTP requests",
@@ -91,7 +123,7 @@ http_request_duration_seconds = Histogram(
     labels=("method", "endpoint"),
 )
 
-# Business metrics
+# Business metrics — Counters
 sensor_readings_processed = Counter(
     "nexusai_sensor_readings_total",
     "Total sensor readings processed",
@@ -109,9 +141,56 @@ llm_calls_total = Counter(
     labels=("status",),  # success / failure / fallback
 )
 
-active_alerts_gauge = Counter(
+dlq_messages_total = Counter(
+    "nexusai_dlq_messages_total",
+    "Total messages sent to dead letter queue",
+)
+
+# Business metrics — Gauges
+stream_queue_length = Gauge(
+    "nexusai_stream_queue_length",
+    "Redis Stream length (pending messages)",
+    labels=("stream",),
+)
+
+active_alerts_gauge = Gauge(
     "nexusai_active_alerts",
     "Current active alerts (triggered status)",
+    labels=("severity",),
+)
+
+device_count_gauge = Gauge(
+    "nexusai_device_count",
+    "Number of devices by status",
+    labels=("status",),
+)
+
+oee_score_gauge = Gauge(
+    "nexusai_oee_score",
+    "OEE score per device (0-100)",
+    labels=("device_id",),
+)
+
+circuit_breaker_state = Gauge(
+    "nexusai_circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=half_open, 2=open)",
+    labels=("service",),
+)
+
+redis_operations_total = Counter(
+    "nexusai_redis_operations_total",
+    "Total Redis operations",
+    labels=("operation", "status"),
+)
+
+db_connections_active = Gauge(
+    "nexusai_db_connections_active",
+    "Active database connections",
+)
+
+process_uptime_seconds = Gauge(
+    "nexusai_process_uptime_seconds",
+    "Process uptime in seconds",
 )
 
 
@@ -123,8 +202,18 @@ _all_metrics = [
     sensor_readings_processed,
     anomalies_detected_total,
     llm_calls_total,
+    dlq_messages_total,
+    stream_queue_length,
     active_alerts_gauge,
+    device_count_gauge,
+    oee_score_gauge,
+    circuit_breaker_state,
+    redis_operations_total,
+    db_connections_active,
+    process_uptime_seconds,
 ]
+
+_start_time = time.time()
 
 
 def setup_metrics(app: FastAPI, service_name: str = ""):
@@ -161,6 +250,8 @@ def setup_metrics(app: FastAPI, service_name: str = ""):
 
     @app.get("/metrics", response_class=PlainTextResponse)
     async def metrics_endpoint():
+        # Update uptime on every scrape
+        process_uptime_seconds.set(time.time() - _start_time)
         lines = []
         for m in _all_metrics:
             exposed = m.expose()
