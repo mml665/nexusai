@@ -35,7 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             {this.props.pageName ? `${this.props.pageName} ` : ""}页面遇到了一个错误
           </p>
           <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 16, fontFamily: "monospace" }}>
-            {this.state.error?.message || "Unknown error"}
+            {this.state.error?.message || "未知错误"}
           </p>
           <button
             onClick={this.handleReload}

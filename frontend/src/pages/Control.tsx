@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, usePolling } from "../api";
-import { DEVICE_LIST } from "../types";
+import { DEVICE_LIST, FAULT_TYPE_LABELS, t } from "../types";
 
 const FAULT_TYPES = [
   { name: "bearing_wear", label: "轴承磨损", desc: "振动逐渐增大，模拟主轴轴承劣化", icon: "⚙️", color: "#f59e0b" },
@@ -22,7 +22,7 @@ export default function Control() {
     setMessage("");
     try {
       await api.injectFault(selectedDevice, faultType);
-      setMessage(`✅ 已注入故障: ${faultType} → ${selectedDevice}`);
+      setMessage(`✅ 已注入故障: ${t(FAULT_TYPE_LABELS, faultType)} → ${selectedDevice}`);
     } catch (e: any) {
       setMessage(`❌ 注入失败: ${e.message}`);
     }
@@ -164,7 +164,7 @@ export default function Control() {
                 }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#ef4444" }}>
-                      {f.device_id} — {f.fault_type}
+                      {f.device_id} — {t(FAULT_TYPE_LABELS, f.fault_type)}
                     </div>
                     <div style={{ fontSize: 11, color: "#6b7280" }}>
                       注入时间: {f.injected_at ? new Date(f.injected_at).toLocaleTimeString("zh-CN", { hour12: false }) : "—"}
@@ -184,7 +184,7 @@ export default function Control() {
                 }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#ef4444" }}>
-                      {deviceId} — {typeof fault === "string" ? fault : fault?.fault_type || "unknown"}
+                      {deviceId} — {typeof fault === "string" ? t(FAULT_TYPE_LABELS, fault) : t(FAULT_TYPE_LABELS, fault?.fault_type || "") || "未知"}
                     </div>
                   </div>
                   <button onClick={() => handleClear(deviceId)}

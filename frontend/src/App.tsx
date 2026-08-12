@@ -7,6 +7,7 @@ import Control from "./pages/Control";
 import Login from "./pages/Login";
 import ErrorBoundary from "./ErrorBoundary";
 import { getToken, clearToken, getUser, setUser } from "./api";
+import { ROLE_LABELS, t } from "./types";
 
 type Page = "overview" | "devices" | "alerts" | "maintenance" | "control";
 
@@ -149,10 +150,10 @@ export default function App() {
         <div style={{ marginTop: "auto", borderTop: "1px solid #1f2937", paddingTop: 16, padding: "16px 24px" }}>
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>
-              {user?.username || "unknown"}
+              {user?.username || "未知用户"}
             </div>
             <div style={{ fontSize: 11, color: "#6b7280" }}>
-              角色: {user?.role || "viewer"}
+              角色: {t(ROLE_LABELS, user?.role || "viewer")}
             </div>
           </div>
           <button

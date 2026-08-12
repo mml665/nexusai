@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { api, useRealtimeSensors, usePolling } from "../api";
 import ReactECharts from "echarts-for-react";
-import { LINE_COLORS } from "../types";
+import { LINE_COLORS, SENSOR_LABELS, t } from "../types";
 
 export default function Devices() {
   const sensors = useRealtimeSensors();
@@ -55,7 +55,7 @@ export default function Devices() {
         ]},
       },
     }],
-    title: { text: sensorType, left: 10, top: 5, textStyle: { color: "#9ca3af", fontSize: 12 } },
+    title: { text: t(SENSOR_LABELS, sensorType), left: 10, top: 5, textStyle: { color: "#9ca3af", fontSize: 12 } },
   });
 
   return (

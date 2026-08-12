@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { api, useWebSocketStream, usePolling } from "../api";
 import type { AlertData, DiagnosisData } from "../types";
-import { SEVERITY_COLORS } from "../types";
+import { SEVERITY_COLORS, SEVERITY_LABELS, ALERT_STATUS_LABELS, URGENCY_LABELS, t } from "../types";
 
 export default function Alerts() {
   const { data: alertsData, loading } = usePolling(() => api.getAlerts(), 5000);
@@ -65,7 +65,7 @@ export default function Alerts() {
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: SEVERITY_COLORS[alert.severity] }}>
-                    [{alert.severity.toUpperCase()}] {alert.device_id}
+                    [{t(SEVERITY_LABELS, alert.severity)}] {alert.device_id}
                   </span>
                   <span style={{ fontSize: 10, color: "#4b5563" }}>
                     {new Date(alert.created_at).toLocaleTimeString("zh-CN", { hour12: false })}
@@ -81,7 +81,7 @@ export default function Alerts() {
                     <button onClick={() => handleResolve(alert.id)} style={{ ...btnStyle, color: "#10b981", borderColor: "#10b981" }}>解决</button>
                   )}
                   <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#1f2937", color: "#6b7280" }}>
-                    {alert.status}
+                    {t(ALERT_STATUS_LABELS, alert.status)}
                   </span>
                 </div>
               </div>
@@ -140,7 +140,7 @@ function DiagnosisCard({ diag }: { diag: any }) {
           <span style={{
             fontSize: 10, padding: "2px 8px", borderRadius: 4,
             background: `${urgencyColor}20`, color: urgencyColor,
-          }}>{diag.urgency?.toUpperCase()}</span>
+          }}>{t(URGENCY_LABELS, diag.urgency || "")}</span>
           {diag.llm_used && (
             <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(139,92,246,0.2)", color: "#8b5cf6" }}>
               LLM

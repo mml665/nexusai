@@ -1,7 +1,7 @@
 import { api, usePolling, useRealtimeSensors, useWebSocket, useWebSocketStream } from "../api";
 import ReactECharts from "echarts-for-react";
 import type { OverviewData, AnomalyEvent, OEEData } from "../types";
-import { SEVERITY_COLORS, LINE_COLORS } from "../types";
+import { SEVERITY_COLORS, LINE_COLORS, SEVERITY_LABELS, SENSOR_LABELS, t } from "../types";
 
 // ── 工具函数 ──
 
@@ -165,14 +165,14 @@ export default function Overview() {
                           fontSize: 10, padding: "2px 6px", borderRadius: 4,
                           background: "#1f2937", color: "#9ca3af",
                         }}>
-                          {k.split("_").map(w => w[0]).join("")}: {typeof v === "number" ? v.toFixed(1) : v}
+                          {t(SENSOR_LABELS, k)}: {typeof v === "number" ? v.toFixed(1) : v}
                         </span>
                       ))}
                     </div>
                   )}
                   {oee && (
                     <div style={{ fontSize: 11, color: LINE_COLORS[dev.line], marginTop: 6 }}>
-                      OEE: {oee.oee.toFixed(1)}% · 产出: {oee.output_count}
+                      设备综合效率: {oee.oee.toFixed(1)}% · 产出: {oee.output_count}
                     </div>
                   )}
                 </div>
@@ -198,7 +198,7 @@ export default function Overview() {
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: SEVERITY_COLORS[ev.severity] || "#9ca3af" }}>
-                      {ev.severity.toUpperCase()}
+                      {t(SEVERITY_LABELS, ev.severity)}
                     </span>
                     <span style={{ fontSize: 10, color: "#4b5563" }}>{ev.device_id}</span>
                   </div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, usePolling } from "../api";
 import ReactECharts from "echarts-for-react";
-import { RISK_COLORS, DEVICE_LIST } from "../types";
+import { RISK_COLORS, RISK_LABELS, TREND_LABELS, SENSOR_LABELS, DEVICE_LIST, t } from "../types";
 
 export default function Maintenance() {
   const { data: maintenanceData, loading } = usePolling(() => api.triggerMaintenanceAll(), 60000);
@@ -63,7 +63,7 @@ export default function Maintenance() {
                     fontSize: 10, padding: "2px 8px", borderRadius: 4,
                     background: `${RISK_COLORS[r.risk_level]}20`,
                     color: RISK_COLORS[r.risk_level],
-                  }}>{r.risk_level}</span>
+                  }}>{t(RISK_LABELS, r.risk_level)}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   {/* 健康度环形进度 */}
@@ -115,20 +115,20 @@ export default function Maintenance() {
                       <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>维护建议</div>
                       <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6 }}>{detail.recommendation}</div>
                     </div>
-                    {detail.trends && Object.entries(detail.trends).map(([sensor, t]: [string, any]) => (
+                    {detail.trends && Object.entries(detail.trends).map(([sensor, td]: [string, any]) => (
                       <div key={sensor} style={{
                         display: "flex", justifyContent: "space-between",
                         padding: "8px 12px", marginBottom: 4, borderRadius: 6,
                         background: "#0a0e1a",
                       }}>
-                        <span style={{ fontSize: 12, color: "#9ca3af" }}>{sensor}</span>
+                        <span style={{ fontSize: 12, color: "#9ca3af" }}>{t(SENSOR_LABELS, sensor)}</span>
                         <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
-                          <span style={{ color: "#6b7280" }}>当前: {t.current}</span>
-                          <span style={{ color: t.trend === "rising" ? "#ef4444" : t.trend === "falling" ? "#3b82f6" : "#6b7280" }}>
-                            {t.trend}
+                          <span style={{ color: "#6b7280" }}>当前: {td.current}</span>
+                          <span style={{ color: td.trend === "rising" ? "#ef4444" : td.trend === "falling" ? "#3b82f6" : "#6b7280" }}>
+                            {t(TREND_LABELS, td.trend)}
                           </span>
-                          {t.rul_hours !== null && (
-                            <span style={{ color: RISK_COLORS[detail.risk_level] }}>RUL: {t.rul_hours}h</span>
+                          {td.rul_hours !== null && (
+                            <span style={{ color: RISK_COLORS[detail.risk_level] }}>剩余寿命: {td.rul_hours}小时</span>
                           )}
                         </div>
                       </div>

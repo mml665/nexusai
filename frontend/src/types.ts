@@ -136,3 +136,70 @@ export const RISK_COLORS: Record<string, string> = {
   high: "#f97316",
   critical: "#ef4444",
 };
+
+// ── 中文标签映射 ──
+
+export const SEVERITY_LABELS: Record<string, string> = {
+  critical: "严重",
+  warning: "警告",
+  info: "信息",
+};
+
+export const ALERT_STATUS_LABELS: Record<string, string> = {
+  triggered: "已触发",
+  acknowledged: "已确认",
+  resolved: "已解决",
+  false_alarm: "误报",
+};
+
+export const URGENCY_LABELS: Record<string, string> = {
+  critical: "紧急",
+  warning: "警告",
+  info: "信息",
+};
+
+export const RISK_LABELS: Record<string, string> = {
+  healthy: "健康",
+  low: "低风险",
+  medium: "中风险",
+  high: "高风险",
+  critical: "严重",
+};
+
+export const TREND_LABELS: Record<string, string> = {
+  rising: "↑ 上升",
+  falling: "↓ 下降",
+  stable: "→ 稳定",
+};
+
+export const FAULT_TYPE_LABELS: Record<string, string> = {
+  bearing_wear: "轴承磨损",
+  overheating: "过热",
+  calibration_drift: "校准漂移",
+  hydraulic_leak: "液压泄漏",
+  electrical_fault: "电气故障",
+};
+
+export const ROLE_LABELS: Record<string, string> = {
+  admin: "管理员",
+  operator: "操作员",
+  viewer: "观察者",
+};
+
+export const SENSOR_LABELS: Record<string, string> = {
+  temperature: "温度",
+  vibration: "振动",
+  current: "电流",
+  pressure: "压力",
+  rpm: "转速",
+  speed: "速度",
+  power: "功率",
+  humidity: "湿度",
+  flow_rate: "流量",
+  torque: "扭矩",
+};
+
+/** 通用翻译函数：找不到映射时返回原值 */
+export function t(map: Record<string, string>, key: string): string {
+  return map[key] || key;
+}
