@@ -66,7 +66,8 @@ services:
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=7d"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.page-title=NexusAI 指标监控 - Prometheus"
     networks:
       - nexusai-net
 
@@ -79,6 +80,8 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin123
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_DEFAULT_LANGUAGE=zh-CN
+      - GF_DATE_FORMATS_DEFAULT_TIMEZONE=Asia/Shanghai
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards

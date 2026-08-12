@@ -20,7 +20,7 @@
           "refId": "A"
         }
       ],
-      "title": "Request Rate by Endpoint (req/s)",
+      "title": "各端点请求速率（req/s）",
       "type": "timeseries"
     },
     {
@@ -36,7 +36,7 @@
           "refId": "A"
         }
       ],
-      "title": "P95 Latency by Endpoint (seconds)",
+      "title": "各端点 P95 延迟（秒）",
       "type": "timeseries"
     },
     {
@@ -46,9 +46,9 @@
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
       "targets": [
-        { "expr": "sum(rate(nexusai_sensor_readings_total[1m]))", "legendFormat": "readings/s", "refId": "A" }
+        { "expr": "sum(rate(nexusai_sensor_readings_total[1m]))", "legendFormat": "读数/秒", "refId": "A" }
       ],
-      "title": "Sensor Readings / sec",
+      "title": "传感器读数 / 秒",
       "type": "stat"
     },
     {
@@ -58,9 +58,9 @@
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
       "targets": [
-        { "expr": "sum(increase(nexusai_anomalies_detected_total[5m]))", "legendFormat": "anomalies", "refId": "A" }
+        { "expr": "sum(increase(nexusai_anomalies_detected_total[5m]))", "legendFormat": "异常数", "refId": "A" }
       ],
-      "title": "Anomalies Detected (5m)",
+      "title": "异常检测数（5 分钟）",
       "type": "stat"
     },
     {
@@ -70,9 +70,9 @@
       "id": 5,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
       "targets": [
-        { "expr": "sum(increase(nexusai_llm_calls_total[1h]))", "legendFormat": "LLM calls", "refId": "A" }
+        { "expr": "sum(increase(nexusai_llm_calls_total[1h]))", "legendFormat": "LLM 调用", "refId": "A" }
       ],
-      "title": "LLM API Calls (1h)",
+      "title": "LLM API 调用量（1 小时）",
       "type": "stat"
     },
     {
@@ -88,20 +88,20 @@
           "refId": "A"
         }
       ],
-      "title": "Error Rate (5xx) by Endpoint",
+      "title": "各端点错误率（5xx）",
       "type": "timeseries"
     }
   ],
   "refresh": "10s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["nexusai", "industrial-iot"],
+  "tags": ["nexusai", "智能工厂", "工业物联网"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
-  "timezone": "",
-  "title": "NexusAI Platform Overview",
+  "timezone": "Asia/Shanghai",
+  "title": "NexusAI 智能工厂监控总览",
   "uid": "nexusai-overview",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

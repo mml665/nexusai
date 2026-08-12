@@ -44,8 +44,12 @@ function authHeaders(): Record<string, string> {
 }
 
 // ── 401 处理 ──
+// Guard against multiple in-flight requests all triggering reload.
+let handling401 = false;
 
 function handle401() {
+  if (handling401) return;
+  handling401 = true;
   clearToken();
   window.location.reload();
 }

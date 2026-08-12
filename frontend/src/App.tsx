@@ -6,7 +6,7 @@ import Maintenance from "./pages/Maintenance";
 import Control from "./pages/Control";
 import Login from "./pages/Login";
 import ErrorBoundary from "./ErrorBoundary";
-import { getToken, clearToken, getUser } from "./api";
+import { getToken, clearToken, getUser, setUser } from "./api";
 
 type Page = "overview" | "devices" | "alerts" | "maintenance" | "control";
 
@@ -20,32 +20,67 @@ const NAV_ITEMS: { key: Page; label: string; icon: string; roles?: string[] }[] 
 
 export default function App() {
   const [page, setPage] = useState<Page>("overview");
-  const [authed, setAuthed] = useState<boolean>(!!getToken());
-  const [user, setUser] = useState<any>(getUser());
+  const [authed, setAuthed] = useState<boolean>(false);
+  const [user, setUserState] = useState<any>(null);
+  const [validating, setValidating] = useState<boolean>(true);
 
-  // Check token on mount
+  // Validate token on mount: presence alone is not enough, ask gateway.
   useEffect(() => {
-    const token = getToken();
-    if (token) {
-      setAuthed(true);
-      setUser(getUser());
-    } else {
-      setAuthed(false);
-    }
+    const validate = async () => {
+      const token = getToken();
+      if (!token) {
+        setAuthed(false);
+        setValidating(false);
+        return;
+      }
+      try {
+        const resp = await fetch("/api/v1/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!resp.ok) throw new Error("invalid token");
+        const userData = await resp.json();
+        setUser(userData);
+        setUserState(userData);
+        setAuthed(true);
+      } catch {
+        clearToken();
+        setAuthed(false);
+      } finally {
+        setValidating(false);
+      }
+    };
+    validate();
   }, []);
 
   const handleLogin = (token: string, userData: any) => {
     localStorage.setItem("nexusai_token", token);
     localStorage.setItem("nexusai_user", JSON.stringify(userData));
     setAuthed(true);
-    setUser(userData);
+    setUserState(userData);
   };
 
   const handleLogout = () => {
     clearToken();
     setAuthed(false);
-    setUser(null);
+    setUserState(null);
   };
+
+  // Show spinner while validating token to avoid 401 reload loops.
+  if (validating) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "#0a0e1a",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#9ca3af",
+        fontSize: 14,
+      }}>
+        验证登录状态中...
+      </div>
+    );
+  }
 
   // Show login page if not authenticated
   if (!authed) {
