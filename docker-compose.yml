@@ -140,6 +140,8 @@ services:
       - ES_URL=http://elasticsearch:9200
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
     networks:
       - nexusai-net
 

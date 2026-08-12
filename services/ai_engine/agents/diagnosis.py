@@ -274,7 +274,9 @@ def _build_diagnosis_prompt(
   "urgency": "紧急程度: critical(需立即停机) / warning(需尽快处理) / info(可观察)"
 }}
 
-请基于知识库文档和异常数据给出专业、具体的分析。"""
+注意：urgency 字段必须使用英文值 critical / warning / info 之一，不要用中文。
+
+请基于知识库文档和异常数据给出专业、具体的分析。只输出 JSON，不要输出其他内容。"""
 
     return prompt
 
