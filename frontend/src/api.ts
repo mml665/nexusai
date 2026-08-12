@@ -64,7 +64,7 @@ export const api = {
 
   getDevices: () => apiGet<{ data: any[] }>("/devices"),
   triggerMaintenance: (deviceId: string) => apiPost(`/ai/maintenance/${deviceId}`),
-  triggerMaintenanceAll: () => apiPost("/ai/maintenance"),
+  triggerMaintenanceAll: () => apiPost<{ results: MaintenanceData[] }>("/ai/maintenance"),
   triggerDiagnosis: (deviceId: string, body?: any) => apiPost(`/ai/diagnosis/${deviceId}`, body),
   getDiagnoses: (limit = 20) => apiGet<any[]>(`/ai/diagnoses?limit=${limit}`),
   getMaintenanceHistory: (deviceId: string) => apiGet<any[]>(`/ai/maintenance/history/${deviceId}`),

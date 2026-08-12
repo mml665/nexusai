@@ -80,8 +80,8 @@ export interface OverviewData {
     availability: number;
     performance: number;
     quality: number;
-    output: number;
-    defects: number;
+    output_count: number;
+    defect_count: number;
   }>;
   recent_diagnoses: Array<{
     device_id: string;

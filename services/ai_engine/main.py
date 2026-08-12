@@ -155,7 +155,12 @@ async def _stream_consumer_loop():
             for _stream, msgs in messages:
                 for msg_id, fields in msgs:
                     try:
-                        reading = json.loads(fields.get("data", "{}"))
+                        reading = {
+                            "device_id": fields.get("device_id", ""),
+                            "timestamp": fields.get("timestamp", ""),
+                            "sensors": json.loads(fields.get("sensors", "{}")),
+                            "status": fields.get("status", "running"),
+                        }
                         events = detector.check(reading)
                         app_state["stats"]["total_processed"] += 1
 
