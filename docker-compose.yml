@@ -80,8 +80,18 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin123
       - GF_USERS_ALLOW_SIGN_UP=false
+      # 中文化设置
       - GF_USERS_DEFAULT_LANGUAGE=zh-CN
       - GF_DATE_FORMATS_DEFAULT_TIMEZONE=Asia/Shanghai
+      - GF_DATE_FORMATS_FULL_DATE=YYYY年MM月DD日 HH:mm:ss
+      - GF_DATE_FORMATS_INTERVAL_DAY=YYYY年MM月DD日
+      - GF_AUTH_LOGIN_LOCALE=zh-CN
+      - GF_BROWSERS_LOCALE=zh-CN
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      - GF_NEWS_NEWS_FEED_ENABLED=false
+      # 默认仪表盘
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/nexusai-overview.json
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards

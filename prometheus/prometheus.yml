@@ -1,50 +1,63 @@
+# ============================================================
+# NexusAI 智能工厂 — Prometheus 指标采集配置
+# 采集间隔：10 秒；评估间隔：10 秒
+# ============================================================
 global:
-  scrape_interval: 10s
-  evaluation_interval: 10s
+  scrape_interval: 10s        # 每 10 秒采集一次指标
+  evaluation_interval: 10s     # 每 10 秒评估一次告警规则
 
 scrape_configs:
-  # ── NexusAI Microservices ──
+  # ==================== NexusAI 微服务指标采集 ====================
+
+  # API 网关 — 认证、限流、熔断、路由代理
   - job_name: "nexusai-gateway"
     static_configs:
       - targets: ["gateway:8000"]
     metrics_path: /metrics
 
+  # IoT 数据采集器 — 接收传感器数据，写入 Redis Stream
   - job_name: "nexusai-iot-collector"
     static_configs:
       - targets: ["iot_collector:8001"]
     metrics_path: /metrics
 
+  # 流处理器 — 消费 Redis Stream，异常检测，写入数据库
   - job_name: "nexusai-stream-processor"
     static_configs:
       - targets: ["stream_processor:8002"]
     metrics_path: /metrics
 
+  # AI 引擎 — 异常诊断、LLM 调用、知识库检索
   - job_name: "nexusai-ai-engine"
     static_configs:
       - targets: ["ai_engine:8004"]
     metrics_path: /metrics
 
+  # 数据分析服务 — OEE 计算、趋势分析、设备效率
   - job_name: "nexusai-analytics"
     static_configs:
       - targets: ["analytics:8005"]
     metrics_path: /metrics
 
+  # 告警服务 — 告警规则管理、告警生成与推送
   - job_name: "nexusai-alert"
     static_configs:
       - targets: ["alert:8006"]
     metrics_path: /metrics
 
+  # 资产管理服务 — 设备台账、工单管理、用户与权限
   - job_name: "nexusai-asset-manager"
     static_configs:
       - targets: ["asset_manager:8007"]
     metrics_path: /metrics
 
+  # 可观测性服务 — 系统健康检查与状态聚合
   - job_name: "nexusai-observability"
     static_configs:
       - targets: ["observability:8008"]
     metrics_path: /metrics
 
-  # ── Prometheus self-monitoring ──
+  # ==================== Prometheus 自监控 ====================
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]

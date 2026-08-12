@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: "NexusAI Dashboards"
+  - name: "NexusAI 仪表盘"
     orgId: 1
-    folder: "NexusAI"
+    folder: "NexusAI 智能工厂"
     type: file
     disableDeletion: false
     editable: true
