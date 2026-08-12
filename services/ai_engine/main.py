@@ -33,7 +33,7 @@ from common.events import (
 
 from ai_engine.agents.anomaly import AnomalyDetector, AnomalyEvent
 from ai_engine.agents.maintenance import run_maintenance_analysis, MaintenanceResult
-from ai_engine.agents.diagnosis import run_diagnosis, DiagnosisResult
+from ai_engine.agents.diagnosis import run_diagnosis, DiagnosisResult, init_knowledge_base_embeddings
 
 # ── 日志配置 ──────────────────────────────────────
 logging.basicConfig(
@@ -68,8 +68,15 @@ DIAGNOSIS_COOLDOWN = 60.0  # seconds
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("AI Engine starting up...")
-    await get_pool()
+    pool = await get_pool()
     redis_client = await get_redis()
+
+    # 为知识库预生成 embedding（RAG 向量检索需要）
+    try:
+        kb_count = await init_knowledge_base_embeddings(pool)
+        logger.info(f"Knowledge base embeddings initialized: {kb_count} rows")
+    except Exception as e:
+        logger.warning(f"Failed to initialize knowledge base embeddings: {e}")
 
     # 确保 consumer group 存在
     try:

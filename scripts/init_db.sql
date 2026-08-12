@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
     content     TEXT NOT NULL,
     category    TEXT NOT NULL,
     device_type TEXT,
-    embedding   vector(1536)
+    embedding   vector(1024)
 );
 CREATE INDEX IF NOT EXISTS idx_kb_embedding ON knowledge_base USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 

@@ -382,7 +382,7 @@ CREATE TABLE knowledge_base (
     content     TEXT NOT NULL,
     category    TEXT NOT NULL,        -- manual/case/solution
     device_type TEXT,
-    embedding   vector(1536)
+    embedding   vector(1024)
 );
 ```
 

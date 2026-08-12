@@ -58,7 +58,35 @@ class DiagnosisResult:
     urgency: str
     rag_sources: list[dict]
     created_at: str
-    llm_used: bool
+
+
+async def init_knowledge_base_embeddings(pool) -> int:
+    """
+    启动时为知识库中 embedding 为空的记录生成向量。
+    返回更新的行数。
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, title, content FROM knowledge_base WHERE embedding IS NULL"
+        )
+    if not rows:
+        return 0
+
+    updated = 0
+    for row in rows:
+        text = f"{row['title']}\n{row['content']}"
+        embedding = await _get_embedding(text)
+        if not embedding:
+            continue
+        embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE knowledge_base SET embedding = $1::vector WHERE id = $2",
+                embedding_str,
+                row["id"],
+            )
+        updated += 1
+    return updated
 
 
 async def _get_embedding(text: str) -> Optional[list[float]]:
