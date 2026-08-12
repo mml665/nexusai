@@ -1,0 +1,242 @@
+version: "3.9"
+
+services:
+  # ==================== 基础设施层 ====================
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: nexusai-postgres
+    environment:
+      POSTGRES_DB: nexusai
+      POSTGRES_USER: nexusai
+      POSTGRES_PASSWORD: nexusai123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexusai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nexusai-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexusai-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - nexusai-net
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: nexusai-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nexusai-net
+
+  # ==================== 工厂模拟器 ====================
+  simulator:
+    build: ./simulator
+    container_name: nexusai-simulator
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GATEWAY_URL=http://gateway:8000
+      - PUSH_INTERVAL=1.0
+    ports:
+      - "8009:8009"
+    networks:
+      - nexusai-net
+
+  # ==================== 微服务层 ====================
+  gateway:
+    build: ./services/gateway
+    container_name: nexusai-gateway
+    depends_on:
+      - iot_collector
+      - analytics
+      - alert
+      - asset_manager
+      - ai_engine
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - nexusai-net
+
+  iot_collector:
+    build: ./services/iot_collector
+    container_name: nexusai-iot
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://nexusai:nexusai123@postgres:5432/nexusai
+    networks:
+      - nexusai-net
+
+  stream_processor:
+    build: ./services/stream_processor
+    container_name: nexusai-stream
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://nexusai:nexusai123@postgres:5432/nexusai
+    networks:
+      - nexusai-net
+
+  ai_engine:
+    build:
+      context: ./services
+      dockerfile: ai_engine/Dockerfile
+    container_name: nexusai-ai
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "8004:8004"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://nexusai:nexusai123@postgres:5432/nexusai
+      - ES_URL=http://elasticsearch:9200
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+    networks:
+      - nexusai-net
+
+  analytics:
+    build: ./services/analytics
+    container_name: nexusai-analytics
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8005:8005"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://nexusai:nexusai123@postgres:5432/nexusai
+    networks:
+      - nexusai-net
+
+  alert:
+    build: ./services/alert
+    container_name: nexusai-alert
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8006:8006"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://nexusai:nexusai123@postgres:5432/nexusai
+    networks:
+      - nexusai-net
+
+  asset_manager:
+    build: ./services/asset_manager
+    container_name: nexusai-asset
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8007:8007"
+    environment:
+      - DATABASE_URL=postgresql://nexusai:nexusai123@postgres:5432/nexusai
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - nexusai-net
+
+  observability:
+    build: ./services/observability
+    container_name: nexusai-obs
+    depends_on:
+      - gateway
+      - iot_collector
+      - stream_processor
+      - ai_engine
+      - analytics
+      - alert
+      - asset_manager
+    ports:
+      - "8008:8008"
+    environment:
+      - SERVICES=gateway:8000,iot_collector:8001,stream_processor:8002,ai_engine:8004,analytics:8005,alert:8006,asset_manager:8007
+    networks:
+      - nexusai-net
+
+  # ==================== 前端 ====================
+  frontend:
+    build: ./frontend
+    container_name: nexusai-frontend
+    depends_on:
+      - gateway
+    ports:
+      - "3000:80"
+    networks:
+      - nexusai-net
+
+  # ==================== 反向代理 ====================
+  nginx:
+    image: nginx:alpine
+    container_name: nexusai-nginx
+    depends_on:
+      - gateway
+      - frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - nexusai-net
+
+volumes:
+  pg_data:
+  redis_data:
+  es_data:
+
+networks:
+  nexusai-net:
+    driver: bridge
