@@ -58,6 +58,7 @@ class DiagnosisResult:
     urgency: str
     rag_sources: list[dict]
     created_at: str
+    llm_used: bool
 
 
 async def init_knowledge_base_embeddings(pool) -> int:
