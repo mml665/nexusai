@@ -30,6 +30,8 @@ from common.events import (
     CHANNEL_DIAGNOSIS,
     CHANNEL_DEVICE_STATUS,
 )
+from common.metrics import setup_metrics, anomalies_detected_total, llm_calls_total
+from common.errors import setup_error_handlers
 
 from ai_engine.agents.anomaly import AnomalyDetector, AnomalyEvent
 from ai_engine.agents.maintenance import run_maintenance_analysis, MaintenanceResult
@@ -123,11 +125,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+setup_metrics(app, "ai_engine")
+setup_error_handlers(app, "ai_engine")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -210,6 +215,7 @@ async def _publish_anomalies(reading: dict, events: list[AnomalyEvent]):
             "sensor_data": reading.get("sensors", {}),
         }
         await redis_client.publish(CHANNEL_ANOMALY, json.dumps(payload, ensure_ascii=False))
+        anomalies_detected_total.inc(severity=ev.severity)
         logger.info(f"Anomaly detected: {ev.message}")
 
     app_state["stats"]["last_anomaly"] = {
@@ -288,6 +294,7 @@ async def _handle_anomaly_for_diagnosis(raw_data: str):
         pool = await get_pool()
         result = await run_diagnosis(pool, device_id, anomaly_events, sensor_data)
         app_state["stats"]["total_diagnoses"] += 1
+        llm_calls_total.inc(status="success" if result.llm_used else "fallback")
         app_state["stats"]["last_diagnosis"] = {
             "device_id": device_id,
             "urgency": result.urgency,

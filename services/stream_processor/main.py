@@ -11,13 +11,20 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="NexusAI Stream Processor", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from common.config import config
+from common.metrics import setup_metrics, sensor_readings_processed
+from common.errors import setup_error_handlers
+
+app = FastAPI(title="NexusAI Stream Processor", version="2.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+setup_metrics(app, "stream_processor")
+setup_error_handlers(app, "stream_processor")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://nexusai:nexusai123@localhost:5432/nexusai")
 
 STREAM_SENSOR_DATA = "sensor_data"
+STREAM_DLQ = "sensor_data_dlq"  # Dead Letter Queue
 CHANNEL_OEE_UPDATE = "oee_update"
 CONSUMER_GROUP = "stream_processor"
 
@@ -61,7 +68,7 @@ async def shutdown():
 
 
 async def consume_loop():
-    """持续消费 Redis Streams 传感器数据"""
+    """持续消费 Redis Streams 传感器数据（可靠 ACK + 死信队列）"""
     while True:
         try:
             results = await _redis.xreadgroup(
@@ -74,8 +81,18 @@ async def consume_loop():
             if results:
                 for _stream, messages in results:
                     for msg_id, fields in messages:
-                        await process_message(fields)
-                        await _redis.xack(STREAM_SENSOR_DATA, CONSUMER_GROUP, msg_id)
+                        try:
+                            await process_message(fields)
+                            sensor_readings_processed.inc()
+                            # Only ACK after successful processing
+                            await _redis.xack(STREAM_SENSOR_DATA, CONSUMER_GROUP, msg_id)
+                        except Exception as e:
+                            print(f"[StreamProcessor] 消息处理失败 (msg={msg_id}): {e}")
+                            # Send to DLQ for later analysis
+                            dlq_fields = {**fields, "_error": str(e), "_original_id": msg_id}
+                            await _redis.xadd(STREAM_DLQ, dlq_fields, maxlen=10000)
+                            # ACK to prevent reprocessing (message is safely in DLQ)
+                            await _redis.xack(STREAM_SENSOR_DATA, CONSUMER_GROUP, msg_id)
         except Exception as e:
             print(f"[StreamProcessor] 消费错误: {e}")
             await asyncio.sleep(1)

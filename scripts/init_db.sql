@@ -3,6 +3,8 @@
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 -- 启用向量扩展
 CREATE EXTENSION IF NOT EXISTS vector;
+-- 启用加密扩展（用于密码哈希）
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ==================== TimescaleDB 超表 ====================
 
@@ -130,11 +132,11 @@ CREATE INDEX IF NOT EXISTS idx_kb_embedding ON knowledge_base USING ivfflat (emb
 
 -- ==================== 初始数据 ====================
 
--- 默认用户
+-- 默认用户（bcrypt 哈希，密码: admin123 / operator123 / viewer123）
 INSERT INTO users (username, password, role) VALUES
-    ('admin', '$2b$12$placeholder', 'admin'),
-    ('operator', '$2b$12$placeholder', 'operator'),
-    ('viewer', '$2b$12$placeholder', 'viewer')
+    ('admin', crypt('admin123', gen_salt('bf', 12)), 'admin'),
+    ('operator', crypt('operator123', gen_salt('bf', 12)), 'operator'),
+    ('viewer', crypt('viewer123', gen_salt('bf', 12)), 'viewer')
 ON CONFLICT (username) DO NOTHING;
 
 -- 设备初始化

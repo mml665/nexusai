@@ -11,8 +11,14 @@ from typing import Dict, Any
 import redis.asyncio as aioredis
 import os
 
-app = FastAPI(title="NexusAI IoT Collector", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from common.config import config
+from common.metrics import setup_metrics
+from common.errors import setup_error_handlers
+
+app = FastAPI(title="NexusAI IoT Collector", version="2.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+setup_metrics(app, "iot_collector")
+setup_error_handlers(app, "iot_collector")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 _redis: aioredis.Redis | None = None

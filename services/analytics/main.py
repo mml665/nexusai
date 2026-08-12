@@ -21,8 +21,14 @@ import redis.asyncio as aioredis
 import asyncpg
 import uvicorn
 
-app = FastAPI(title="NexusAI Analytics API", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from common.config import config
+from common.metrics import setup_metrics
+from common.errors import setup_error_handlers
+
+app = FastAPI(title="NexusAI Analytics API", version="2.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+setup_metrics(app, "analytics")
+setup_error_handlers(app, "analytics")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://nexusai:nexusai123@localhost:5432/nexusai")
@@ -120,19 +126,21 @@ async def get_oee(device_id: Optional[str] = None, hours: int = 1):
             """
             SELECT time, device_id, availability, performance, quality, oee, output_count, defect_count
             FROM oee_metrics
-            WHERE device_id = $1 AND time > NOW() - INTERVAL '%s hours'
+            WHERE device_id = $1 AND time > NOW() - ($2 * INTERVAL '1 hour')
             ORDER BY time DESC LIMIT 200
-            """ % hours,
+            """,
             device_id,
+            hours,
         )
     else:
         rows = await _pool.fetch(
             """
             SELECT time, device_id, availability, performance, quality, oee, output_count, defect_count
             FROM oee_metrics
-            WHERE time > NOW() - INTERVAL '%s hours'
+            WHERE time > NOW() - ($1 * INTERVAL '1 hour')
             ORDER BY time DESC LIMIT 500
-            """ % hours,
+            """,
+            hours,
         )
     return {
         "count": len(rows),
@@ -193,11 +201,12 @@ async def get_sensor_readings(
             SELECT time, device_id, sensor_type, value, status
             FROM sensor_readings
             WHERE device_id = $1 AND sensor_type = $2
-              AND time > NOW() - INTERVAL '%s minutes'
+              AND time > NOW() - ($3 * INTERVAL '1 minute')
             ORDER BY time ASC LIMIT 600
-            """ % minutes,
+            """,
             device_id,
             sensor_type,
+            minutes,
         )
     else:
         rows = await _pool.fetch(
@@ -205,10 +214,11 @@ async def get_sensor_readings(
             SELECT time, device_id, sensor_type, value, status
             FROM sensor_readings
             WHERE device_id = $1
-              AND time > NOW() - INTERVAL '%s minutes'
+              AND time > NOW() - ($2 * INTERVAL '1 minute')
             ORDER BY time ASC LIMIT 2000
-            """ % minutes,
+            """,
             device_id,
+            minutes,
         )
     return {
         "count": len(rows),
@@ -326,10 +336,11 @@ async def get_output_stats(hours: int = 1):
                SUM(defect_count) as total_defects,
                AVG(oee) as avg_oee
         FROM oee_metrics
-        WHERE time > NOW() - INTERVAL '%s hours'
+        WHERE time > NOW() - ($1 * INTERVAL '1 hour')
         GROUP BY device_id
         ORDER BY device_id
-        """ % hours,
+        """,
+        hours,
     )
     return {
         "hours": hours,

@@ -23,8 +23,14 @@ import redis.asyncio as aioredis
 import asyncpg
 import uvicorn
 
-app = FastAPI(title="NexusAI Smart Alert", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from common.config import config
+from common.metrics import setup_metrics
+from common.errors import setup_error_handlers
+
+app = FastAPI(title="NexusAI Smart Alert", version="2.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+setup_metrics(app, "alert")
+setup_error_handlers(app, "alert")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://nexusai:nexusai123@localhost:5432/nexusai")
@@ -187,9 +193,10 @@ async def _escalation_loop():
                     title = '[ESCALATED] ' || title
                 WHERE status = 'triggered'
                   AND severity = 'warning'
-                  AND created_at < NOW() - INTERVAL '%s seconds'
+                  AND created_at < NOW() - ($1 * INTERVAL '1 second')
                 RETURNING id, device_id, title
-                """ % ESCALATION_INTERVAL,
+                """,
+                ESCALATION_INTERVAL,
             )
             for row in escalated:
                 escalation_payload = {

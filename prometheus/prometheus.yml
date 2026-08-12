@@ -1,0 +1,50 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  # ── NexusAI Microservices ──
+  - job_name: "nexusai-gateway"
+    static_configs:
+      - targets: ["gateway:8000"]
+    metrics_path: /metrics
+
+  - job_name: "nexusai-iot-collector"
+    static_configs:
+      - targets: ["iot_collector:8001"]
+    metrics_path: /metrics
+
+  - job_name: "nexusai-stream-processor"
+    static_configs:
+      - targets: ["stream_processor:8002"]
+    metrics_path: /metrics
+
+  - job_name: "nexusai-ai-engine"
+    static_configs:
+      - targets: ["ai_engine:8004"]
+    metrics_path: /metrics
+
+  - job_name: "nexusai-analytics"
+    static_configs:
+      - targets: ["analytics:8005"]
+    metrics_path: /metrics
+
+  - job_name: "nexusai-alert"
+    static_configs:
+      - targets: ["alert:8006"]
+    metrics_path: /metrics
+
+  - job_name: "nexusai-asset-manager"
+    static_configs:
+      - targets: ["asset_manager:8007"]
+    metrics_path: /metrics
+
+  - job_name: "nexusai-observability"
+    static_configs:
+      - targets: ["observability:8008"]
+    metrics_path: /metrics
+
+  # ── Prometheus self-monitoring ──
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

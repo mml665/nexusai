@@ -12,16 +12,32 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncpg
 import uvicorn
 
-app = FastAPI(title="NexusAI Asset Manager", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from common.config import config
+from common.auth import hash_password, require_role, get_current_user
+from common.metrics import setup_metrics
+from common.errors import setup_error_handlers
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://nexusai:nexusai123@localhost:5432/nexusai")
+app = FastAPI(title="NexusAI Asset Manager", version="2.0.0")
+
+# ── CORS whitelist ──
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+setup_metrics(app, "asset_manager")
+setup_error_handlers(app, "asset_manager")
+
+DATABASE_URL = os.getenv("DATABASE_URL", config.DATABASE_URL)
 _pool: asyncpg.Pool | None = None
 
 
@@ -75,7 +91,7 @@ class UserCreate(BaseModel):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "service": "asset_manager"}
+    return {"status": "healthy", "service": "asset_manager", "version": "2.0.0"}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -141,8 +157,8 @@ async def get_device(device_id: str):
 
 
 @app.put("/api/v1/devices/{device_id}")
-async def update_device(device_id: str, body: DeviceUpdate):
-    """更新设备信息"""
+async def update_device(device_id: str, body: DeviceUpdate, user: dict = Depends(require_role("admin", "operator"))):
+    """更新设备信息（需要 operator+ 权限）"""
     updates = []
     params = []
     idx = 1
@@ -164,7 +180,8 @@ async def update_device(device_id: str, body: DeviceUpdate):
 
     # 审计日志
     await _pool.execute(
-        "INSERT INTO audit_logs (action, resource, detail) VALUES ($1, $2, $3)",
+        "INSERT INTO audit_logs (user_id, action, resource, detail) VALUES ($1, $2, $3, $4)",
+        user.get("user_id"),
         "update_device",
         f"device:{device_id}",
         json.dumps(body.dict(exclude_none=True)),
@@ -249,9 +266,8 @@ async def list_workorders(
 
 
 @app.post("/api/v1/workorders")
-async def create_workorder(body: WorkOrderCreate):
-    """创建工单"""
-    # 验证设备存在
+async def create_workorder(body: WorkOrderCreate, user: dict = Depends(require_role("admin", "operator"))):
+    """创建工单（需要 operator+ 权限）"""
     exists = await _pool.fetchval("SELECT 1 FROM devices WHERE device_id = $1", body.device_id)
     if not exists:
         raise HTTPException(status_code=404, detail=f"设备 {body.device_id} 不存在")
@@ -269,9 +285,9 @@ async def create_workorder(body: WorkOrderCreate):
         body.assigned_to,
     )
 
-    # 审计日志
     await _pool.execute(
-        "INSERT INTO audit_logs (action, resource, detail) VALUES ($1, $2, $3)",
+        "INSERT INTO audit_logs (user_id, action, resource, detail) VALUES ($1, $2, $3, $4)",
+        user.get("user_id"),
         "create_workorder",
         f"workorder:{wo_id}",
         json.dumps({"device_id": body.device_id, "type": body.type, "priority": body.priority}),
@@ -281,8 +297,8 @@ async def create_workorder(body: WorkOrderCreate):
 
 
 @app.put("/api/v1/workorders/{wo_id}")
-async def update_workorder(wo_id: int, body: WorkOrderUpdate):
-    """更新工单"""
+async def update_workorder(wo_id: int, body: WorkOrderUpdate, user: dict = Depends(require_role("admin", "operator"))):
+    """更新工单（需要 operator+ 权限）"""
     updates = []
     params = []
     idx = 1
@@ -294,7 +310,6 @@ async def update_workorder(wo_id: int, body: WorkOrderUpdate):
     if not updates:
         raise HTTPException(status_code=400, detail="无更新字段")
 
-    # 如果状态改为 completed，设置 completed_at
     if body.status == "completed":
         updates.append(f"completed_at = ${idx}")
         params.append(datetime.now(timezone.utc))
@@ -312,12 +327,12 @@ async def update_workorder(wo_id: int, body: WorkOrderUpdate):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  用户管理（简化版 RBAC）
+#  用户管理（RBAC）
 # ═══════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/users")
-async def list_users():
-    """用户列表"""
+async def list_users(user: dict = Depends(require_role("admin"))):
+    """用户列表（仅管理员）"""
     rows = await _pool.fetch("SELECT id, username, role, created_at FROM users ORDER BY id")
     return {
         "count": len(rows),
@@ -334,8 +349,8 @@ async def list_users():
 
 
 @app.post("/api/v1/users")
-async def create_user(body: UserCreate):
-    """创建用户"""
+async def create_user(body: UserCreate, user: dict = Depends(require_role("admin"))):
+    """创建用户（仅管理员，密码 bcrypt 加密）"""
     if body.role not in ("admin", "operator", "viewer"):
         raise HTTPException(status_code=400, detail="角色必须为 admin / operator / viewer")
 
@@ -343,11 +358,19 @@ async def create_user(body: UserCreate):
         user_id = await _pool.fetchval(
             "INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id",
             body.username,
-            body.password,  # 实际项目应 bcrypt 加密
+            hash_password(body.password),  # bcrypt hashed
             body.role,
         )
     except asyncpg.UniqueViolationError:
         raise HTTPException(status_code=409, detail="用户名已存在")
+
+    await _pool.execute(
+        "INSERT INTO audit_logs (user_id, action, resource, detail) VALUES ($1, $2, $3, $4)",
+        user.get("user_id"),
+        "create_user",
+        f"user:{user_id}",
+        json.dumps({"username": body.username, "role": body.role}),
+    )
 
     return {"id": user_id, "username": body.username, "role": body.role}
 
@@ -357,8 +380,8 @@ async def create_user(body: UserCreate):
 # ═══════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/audit-logs")
-async def list_audit_logs(limit: int = 50, action: Optional[str] = None):
-    """审计日志"""
+async def list_audit_logs(limit: int = 50, action: Optional[str] = None, user: dict = Depends(require_role("admin"))):
+    """审计日志（仅管理员）"""
     if action:
         rows = await _pool.fetch(
             "SELECT id, user_id, action, resource, detail, created_at FROM audit_logs WHERE action = $1 ORDER BY created_at DESC LIMIT $2",

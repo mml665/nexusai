@@ -1,23 +1,59 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Overview from "./pages/Overview";
 import Devices from "./pages/Devices";
 import Alerts from "./pages/Alerts";
 import Maintenance from "./pages/Maintenance";
 import Control from "./pages/Control";
+import Login from "./pages/Login";
 import ErrorBoundary from "./ErrorBoundary";
+import { getToken, clearToken, getUser } from "./api";
 
 type Page = "overview" | "devices" | "alerts" | "maintenance" | "control";
 
-const NAV_ITEMS: { key: Page; label: string; icon: string }[] = [
+const NAV_ITEMS: { key: Page; label: string; icon: string; roles?: string[] }[] = [
   { key: "overview", label: "运营总览", icon: "📊" },
   { key: "devices", label: "设备监控", icon: "🏭" },
   { key: "alerts", label: "告警 & 诊断", icon: "🚨" },
   { key: "maintenance", label: "预测维护", icon: "🔧" },
-  { key: "control", label: "故障注入", icon: "⚡" },
+  { key: "control", label: "故障注入", icon: "⚡", roles: ["admin", "operator"] },
 ];
 
 export default function App() {
   const [page, setPage] = useState<Page>("overview");
+  const [authed, setAuthed] = useState<boolean>(!!getToken());
+  const [user, setUser] = useState<any>(getUser());
+
+  // Check token on mount
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      setAuthed(true);
+      setUser(getUser());
+    } else {
+      setAuthed(false);
+    }
+  }, []);
+
+  const handleLogin = (token: string, userData: any) => {
+    localStorage.setItem("nexusai_token", token);
+    localStorage.setItem("nexusai_user", JSON.stringify(userData));
+    setAuthed(true);
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    clearToken();
+    setAuthed(false);
+    setUser(null);
+  };
+
+  // Show login page if not authenticated
+  if (!authed) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  const userRole = user?.role || "viewer";
+  const visibleNavItems = NAV_ITEMS.filter(item => !item.roles || item.roles.includes(userRole));
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#0a0e1a" }}>
@@ -28,6 +64,8 @@ export default function App() {
         borderRight: "1px solid #1f2937",
         padding: "20px 0",
         flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
       }}>
         <div style={{
           padding: "0 24px 24px",
@@ -47,7 +85,7 @@ export default function App() {
           <p style={{ fontSize: 12, color: "#6b7280" }}>智能工厂实时运营平台</p>
         </div>
 
-        {NAV_ITEMS.map(item => (
+        {visibleNavItems.map(item => (
           <button
             key={item.key}
             onClick={() => setPage(item.key)}
@@ -72,10 +110,36 @@ export default function App() {
           </button>
         ))}
 
-        <div style={{ position: "absolute", bottom: 20, padding: "0 24px" }}>
-          <div style={{ fontSize: 11, color: "#4b5563" }}>
+        {/* User info + Logout */}
+        <div style={{ marginTop: "auto", borderTop: "1px solid #1f2937", paddingTop: 16, padding: "16px 24px" }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>
+              {user?.username || "unknown"}
+            </div>
+            <div style={{ fontSize: 11, color: "#6b7280" }}>
+              角色: {user?.role || "viewer"}
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
+              borderRadius: 6,
+              color: "#ef4444",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            退出登录
+          </button>
+          <div style={{ fontSize: 11, color: "#4b5563", marginTop: 12 }}>
             <div>8 微服务 · 5 数据存储</div>
-            <div>3 AI Agent · 实时流处理</div>
+            <div>3 AI Agent · Prometheus 监控</div>
           </div>
         </div>
       </nav>

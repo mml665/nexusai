@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ── Lint ──
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.4.4
+      - run: ruff check services/ tests/
+
+  # ── Unit Tests ──
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install fastapi==0.111.0 uvicorn==0.30.1 redis==5.0.4 asyncpg==0.29.0 httpx==0.27.0 pydantic==2.7.1 passlib[bcrypt]==3.7.4
+      - name: Run unit tests
+        run: pytest tests/ -m unit -v --tb=short
+
+  # ── Docker Build ──
+  build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Gateway
+        run: docker build -t nexusai-gateway:test -f services/gateway/Dockerfile services/
+      - name: Build AI Engine
+        run: docker build -t nexusai-ai:test -f services/ai_engine/Dockerfile services/
+      - name: Build Frontend
+        run: docker build -t nexusai-frontend:test frontend/
+
+  # ── Frontend Build ──
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install & Build
+        run: |
+          cd frontend
+          npm install
+          npm run build
