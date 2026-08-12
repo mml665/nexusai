@@ -120,6 +120,15 @@ function diagrams(diagnoses: DiagnosisData[]) {
 
 function DiagnosisCard({ diag }: { diag: any }) {
   const urgencyColor = diag.urgency === "critical" ? "#ef4444" : diag.urgency === "warning" ? "#f59e0b" : "#3b82f6";
+
+  // 防御性处理：rag_sources 可能是 JSON 字符串或数组
+  let ragSources: any[] = [];
+  if (Array.isArray(diag.rag_sources)) {
+    ragSources = diag.rag_sources;
+  } else if (typeof diag.rag_sources === "string" && diag.rag_sources) {
+    try { ragSources = JSON.parse(diag.rag_sources); } catch { ragSources = []; }
+  }
+
   return (
     <div style={{
       padding: 14, marginBottom: 10, borderRadius: 8, background: "#0a0e1a",
@@ -148,9 +157,9 @@ function DiagnosisCard({ diag }: { diag: any }) {
       <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.6 }}>
         <strong style={{ color: "#e0e6ed" }}>建议：</strong>{diag.recommendation}
       </div>
-      {diag.rag_sources && diag.rag_sources.length > 0 && (
+      {ragSources.length > 0 && (
         <div style={{ marginTop: 6, fontSize: 10, color: "#4b5563" }}>
-          参考文档: {diag.rag_sources.map((s: any, i: number) => `[${i + 1}] ${s.title}`).join("  ")}
+          参考文档: {ragSources.map((s: any, i: number) => `[${i + 1}] ${s.title}`).join("  ")}
         </div>
       )}
     </div>

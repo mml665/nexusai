@@ -4,6 +4,7 @@ import Devices from "./pages/Devices";
 import Alerts from "./pages/Alerts";
 import Maintenance from "./pages/Maintenance";
 import Control from "./pages/Control";
+import ErrorBoundary from "./ErrorBoundary";
 
 type Page = "overview" | "devices" | "alerts" | "maintenance" | "control";
 
@@ -81,11 +82,21 @@ export default function App() {
 
       {/* 主内容区 */}
       <main style={{ flex: 1, overflow: "auto", padding: 24 }}>
-        {page === "overview" && <Overview />}
-        {page === "devices" && <Devices />}
-        {page === "alerts" && <Alerts />}
-        {page === "maintenance" && <Maintenance />}
-        {page === "control" && <Control />}
+        <ErrorBoundary pageName="运营总览">
+          {page === "overview" && <Overview />}
+        </ErrorBoundary>
+        <ErrorBoundary pageName="设备监控">
+          {page === "devices" && <Devices />}
+        </ErrorBoundary>
+        <ErrorBoundary pageName="告警&诊断">
+          {page === "alerts" && <Alerts />}
+        </ErrorBoundary>
+        <ErrorBoundary pageName="预测维护">
+          {page === "maintenance" && <Maintenance />}
+        </ErrorBoundary>
+        <ErrorBoundary pageName="故障注入">
+          {page === "control" && <Control />}
+        </ErrorBoundary>
       </main>
     </div>
   );

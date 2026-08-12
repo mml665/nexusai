@@ -519,17 +519,30 @@ async def list_diagnoses(limit: int = 20):
             """,
             limit,
         )
+    def _parse_json(val):
+        """数据库中 sensor_data/rag_sources 以 JSON 字符串存储，返回时需解析"""
+        if val is None:
+            return None
+        if isinstance(val, (dict, list)):
+            return val
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            return val
+
     return [
         {
             "id": row["id"],
             "device_id": row["device_id"],
             "anomaly_type": row["anomaly_type"],
-            "sensor_data": row["sensor_data"],
+            "sensor_data": _parse_json(row["sensor_data"]),
             "diagnosis": row["diagnosis"],
             "recommendation": row["recommendation"],
             "urgency": row["urgency"],
-            "rag_sources": row["rag_sources"],
+            "rag_sources": _parse_json(row["rag_sources"]) or [],
+            "llm_used": False,
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "timestamp": row["created_at"].isoformat() if row["created_at"] else None,
         }
         for row in rows
     ]
